@@ -97,12 +97,12 @@ int process_rx_pkt(struct rte_mbuf *pkt) {
 	uint8_t *payload = ((uint8_t*) tcp_hdr) + ((tcp_hdr->data_off >> 4)*4);
 	uint64_t t0 = ((uint64_t*)payload)[0];
 	uint64_t t = ((uint64_t*)payload)[1];
-	uint64_t flow_id = ((uint64_t*)payload)[2];
+	uint64_t f_id = ((uint64_t*)payload)[2];
 	uint64_t thread_id = ((uint64_t*)payload)[3];
 
 	/* fill the node previously allocated */
 	node_t *node = &(incoming[incoming_idx++]);
-	node->flow_id = flow_id;
+	node->flow_id = f_id;
 	node->thread_id = thread_id;
 	node->ack_dup = ack_dup;
 	node->ack_empty = ack_empty;
