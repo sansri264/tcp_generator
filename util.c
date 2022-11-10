@@ -304,7 +304,7 @@ void process_config_file(char *cfg_file) {
 	if(entry) {
 		uint16_t port;
 		sscanf(entry, "%hu", &port);
-		dst_tcp_port = rte_cpu_to_be_16(port);
+		dst_tcp_port = port;
 	}
 
 	/* local server info */

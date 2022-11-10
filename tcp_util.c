@@ -36,10 +36,10 @@ void init_tcp_blocks() {
 		src_tcp_port = ports[i];
 
         tcp_control_blocks[i].src_addr = src_ipv4_addr;
-        tcp_control_blocks[i].dst_addr = rte_cpu_to_be_16(dst_tcp_port + (i % nr_apps));
+        tcp_control_blocks[i].dst_addr = dst_ipv4_addr;
 
         tcp_control_blocks[i].src_port = src_tcp_port;
-        tcp_control_blocks[i].dst_port = dst_tcp_port;
+        tcp_control_blocks[i].dst_port = rte_cpu_to_be_16(dst_tcp_port + (i % nr_apps));
 
 		uint32_t seq = rte_rand();
 		tcp_control_blocks[i].tcb_seq_ini = seq;
