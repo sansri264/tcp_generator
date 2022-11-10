@@ -42,7 +42,6 @@ void init_DPDK(uint16_t portid, uint64_t nr_queues) {
 	}
 
 	/* initialize the DPDK port */
-
 	uint16_t nb_rx_queue = nr_queues;
 	uint16_t nb_tx_queue = nr_queues;
 
@@ -57,6 +56,7 @@ int init_DPDK_port(uint16_t portid, uint16_t nb_rx_queue, uint16_t nb_tx_queue, 
     uint16_t nb_rxd = 1024;
     uint16_t nb_txd = 4096;
 
+	/* get port_conf default */
 	struct rte_eth_conf port_conf = {
         .rxmode = {
             .mq_mode = nb_rx_queue > 1 ? ETH_MQ_RX_RSS : ETH_MQ_RX_NONE,
@@ -88,6 +88,7 @@ int init_DPDK_port(uint16_t portid, uint16_t nb_rx_queue, uint16_t nb_tx_queue, 
 		return retval;
 	}
 
+	/* setup the RX queues */
 	for(int q = 0; q < nb_rx_queue; q++) {
 		retval = rte_eth_rx_queue_setup(portid, q, nb_rxd, rte_eth_dev_socket_id(portid), NULL, mbuf_pool);
 		if (retval < 0) {
@@ -95,6 +96,7 @@ int init_DPDK_port(uint16_t portid, uint16_t nb_rx_queue, uint16_t nb_tx_queue, 
 		}
 	}
 
+	/* setup the TX queues */
 	for(int q = 0; q < nb_tx_queue; q++) {
 		retval = rte_eth_tx_queue_setup(portid, q, nb_txd, rte_eth_dev_socket_id(portid), NULL);
 		if (retval < 0) {
@@ -184,6 +186,9 @@ void print_dpdk_stats(uint32_t portid) {
 }
 
 /* Create and fill rte_flow to send to the NIC */
+/* Basically, the NIC will forward the packets from this flow to specify queue_id
+ * and tags the packets with index of the flows array
+ */
 void insert_flow(uint16_t portid, uint32_t i) {
 	int ret;
 	int act_idx = 0;
@@ -225,18 +230,21 @@ void insert_flow(uint16_t portid, uint32_t i) {
 	pattern[pattern_idx].type = RTE_FLOW_ITEM_TYPE_END;
 	pattern_idx++;
 
+	/* validate the rte_flow */
 	ret = rte_flow_validate(portid, &attr, pattern, action, &err);
     if (ret < 0) {
         RTE_LOG(ERR, TCP_GENERATOR, "Flow validation failed %s\n", err.message);
         return;
     }
 
+	/* create the flow and insert to the NIC */
     struct rte_flow *rule = rte_flow_create(portid, &attr, pattern, action, &err);
     if (rule == NULL) {
         RTE_LOG(ERR, TCP_GENERATOR, "Flow creation return %s\n", err.message);
 	}
 }
 
+/* clear all DPDK structures allocated */
 void clean_hugepages() {
     rte_ring_free(rx_ring);
 	rte_free(tcp_control_blocks);

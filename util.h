@@ -46,6 +46,7 @@ typedef struct timestamp_node_t {
 extern uint64_t rate;
 extern uint16_t portid;
 extern uint64_t duration;
+extern uint16_t nr_apps;
 extern uint64_t nr_flows;
 extern uint64_t nr_executions;
 extern uint32_t frame_size;

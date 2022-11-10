@@ -72,6 +72,7 @@ extern uint32_t dst_ipv4_addr;
 extern uint32_t src_ipv4_addr;
 extern uint16_t dst_tcp_port;
 
+extern uint16_t nr_apps;
 extern uint64_t nr_flows;
 extern uint32_t frame_size;
 extern uint32_t tcp_payload_size;

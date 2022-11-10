@@ -15,6 +15,7 @@
 /* Application parameters */
 uint64_t rate;
 uint64_t duration;
+uint16_t nr_apps;
 uint64_t nr_flows;
 uint64_t nr_executions;
 uint32_t frame_size;
@@ -51,39 +52,53 @@ uint16_t dst_tcp_port;
 
 /* Process the incoming TCP packet */
 int process_rx_pkt(struct rte_mbuf *pkt) {
+	/* process only TCP packets*/
 	struct rte_ipv4_hdr *ipv4_hdr = rte_pktmbuf_mtod_offset(pkt, struct rte_ipv4_hdr *, sizeof(struct rte_ether_hdr));
 	if(unlikely(ipv4_hdr->next_proto_id != IPPROTO_TCP))
 		return 0;
 
+	/* get TCP header */
 	struct rte_tcp_hdr *tcp_hdr = rte_pktmbuf_mtod_offset(pkt, struct rte_tcp_hdr *, sizeof(struct rte_ether_hdr) + (ipv4_hdr->version_ihl & 0x0f)*4);
 	
+	/* retrieve the index of the flow from the NIC (NIC tags the packet according the 5-tuple using DPDK rte_flow) */
 	uint32_t flow_id = pkt->hash.fdir.hi;
+
+	/* get control block for the flow */
 	tcp_control_block_t *block = &tcp_control_blocks[flow_id];
 
+	/* reset the connection if packets has RST flag */
 	if(unlikely(tcp_hdr->tcp_flags & RTE_TCP_RST_FLAG)) {
 		rte_atomic16_set(&block->tcb_state, TCP_CLOSED);
 		return 0;
 	}
 
+	/* update receive window from the packet */
 	rte_atomic16_set(&block->tcb_rwin, tcp_hdr->rx_win);
 
+	/* update DUP ACKs counter */
 	if(unlikely(block->last_ack_recv == tcp_hdr->recv_ack)) {
 		ack_dup++;
 	}
 
+	/* get TCP payload size */
 	uint32_t packet_data_size = rte_be_to_cpu_16(ipv4_hdr->total_length) - ((ipv4_hdr->version_ihl & 0x0f)*4) - ((tcp_hdr->data_off >> 4)*4);
 
+	/* update EMPTY counter */
+	/* do not process empty packets */
 	if(unlikely(packet_data_size == 0)) {
 		ack_empty++;
 		return 0;
 	}
 
+	/* update ACK number in the TCP control block from the packet */
 	rte_atomic32_set(&block->tcb_next_ack, tcp_hdr->sent_seq + rte_cpu_to_be_32(packet_data_size));
 
+	/* obtain both timestamp from the packet */
 	uint8_t *payload = ((uint8_t*) tcp_hdr) + ((tcp_hdr->data_off >> 4)*4);
 	uint64_t t0 = ((uint64_t*)payload)[0];
 	uint64_t t = ((uint64_t*)payload)[1];
 
+	/* fill the node previously allocated */
 	node_t *node = &(incoming[incoming_idx++]);
 	node->ack_dup = ack_dup;
 	node->ack_empty = ack_empty;
@@ -104,29 +119,39 @@ void start_client(uint16_t portid) {
 	struct rte_mbuf *pkts[BURST_SIZE];
 
 	for(int i = 0; i < nr_flows; i++) {
+		/* get the TCP control block for the flow */
 		block = &tcp_control_blocks[i];
+		/* create the TCP SYN packet */
 		struct rte_mbuf *syn_packet = create_syn_packet(i);
+		/* insert the rte_flow in the NIC to retrieve the flow id for incoming packets of this flow */
 		insert_flow(portid, i);
 
+		/* send the packet */
 		nb_tx = rte_eth_tx_burst(portid, 0, &syn_packet, 1);
 		if(nb_tx != 1) {
 			rte_exit(EXIT_FAILURE, "Error to send the TCP SYN packet.\n");
 		}
+		/* change the TCP state to SYN_SENT */
 		rte_atomic16_set(&block->tcb_state, TCP_SYN_SENT);
 
+		/* while not receive SYN+ACK packet and TCP state is not ESTABLISHED */
 		while(rte_atomic16_read(&block->tcb_state) != TCP_ESTABLISHED) {
+			/* receive TCP SYN+ACK packets from the NIC */
 			nb_rx = rte_eth_rx_burst(portid, 0, pkts, BURST_SIZE);
 
 			for(int j = 0; j < nb_rx; j++) {
+				/* process the SYN+ACK packet, returning the ACK packet to send*/
 				pkt = process_syn_ack_packet(pkts[j]);
 				
 				if(pkt) {
+					/* send the TCP ACK packet to the server */
 					nb_tx = rte_eth_tx_burst(portid, 0, &pkt, 1);
 					if(nb_tx != 1) {
 						rte_exit(EXIT_FAILURE, "Error to send the TCP ACK packet.\n");
 					}
 				}
 			}
+			/* free packets */
 			rte_pktmbuf_free_bulk(pkts, nb_rx);
 		};
 	}
@@ -144,20 +169,25 @@ static int lcore_rx_ring(void *arg) {
 	struct rte_mbuf *pkts[BURST_SIZE];
 
 	while(!quit_rx_ring) {
+		/* retrieve packets from the RX core */
 		nb_rx = rte_ring_sc_dequeue_burst(rx_ring, (void**) pkts, BURST_SIZE, NULL); 
 		for(int i = 0; i < nb_rx; i++) {
 			rte_prefetch_non_temporal(rte_pktmbuf_mtod(pkts[i], void *));
+			/* process the incoming packet */
 			process_rx_pkt(pkts[i]);
 		}
+		/* free packets */
 		rte_pktmbuf_free_bulk(pkts, nb_rx);
 	}
 
+	/* process all remaining packets that are in the RX ring (not from the NIC) */
 	do{
 		nb_rx = rte_ring_sc_dequeue_burst(rx_ring, (void**) pkts, BURST_SIZE, NULL);
 		for(int i = 0; i < nb_rx; i++) {
 			rte_prefetch_non_temporal(rte_pktmbuf_mtod(pkts[i], void *));
 			process_rx_pkt(pkts[i]);
 		}
+		/* free packets */
 		rte_pktmbuf_free_bulk(pkts, nb_rx);
 	} while (nb_rx != 0);
 
@@ -175,10 +205,14 @@ static int lcore_rx(void *arg) {
 	struct rte_mbuf *pkts[BURST_SIZE];
 	
 	while(!quit_rx) {
+		/* retrieve packets from the NIC */
 		nb_rx = rte_eth_rx_burst(portid, qid, pkts, BURST_SIZE);
+		/* retrive the current timestamp */
 		now = rte_rdtsc();
 		for(int i = 0; i < nb_rx; i++) {
+			/* fill the timestamp into packet payload */
 			fill_payload_pkt(pkts[i], 1, now);
+			/* enqueue the packet to the other core to process it */
 			if(rte_ring_mp_enqueue(rx_ring, pkts[i]) != 0) {
 				rte_exit(EXIT_FAILURE, "Cannot enqueue the packet to the RX thread: %s.\n", rte_strerror(errno));
 			}
@@ -208,16 +242,21 @@ static int lcore_tx(void *arg) {
 		if(unlikely(i >= nr_elements)) {
 			break;
 		}
+
+		/* choose the flow to send*/
 		uint16_t flow_id = flow_indexes[i];
 		tcp_control_block_t *block = &tcp_control_blocks[flow_id];
 
 		/* generate packets */
 		for(; nb_pkts < n; nb_pkts++) {
 			pkts[nb_pkts] = rte_pktmbuf_alloc(pktmbuf_pool);
+			/* fill the packet with the flow information */
 			fill_tcp_packet(flow_id, pkts[nb_pkts]);
+			/* fill the payload to gather server information */
 			fill_payload_pkt(pkts[nb_pkts], 2, flow_id);
 		}
 
+		/* check receive window for that flow */
 		uint16_t rx_wnd = rte_atomic16_read(&block->tcb_rwin);
 		while(unlikely(rx_wnd < tcp_payload_size)) { 
 			rx_wnd = rte_atomic16_read(&block->tcb_rwin);

@@ -30,13 +30,11 @@
 #define PKTMBUF_POOL_ELEMENTS		512*1024 - 1
 #define RTE_LOGTYPE_TCP_GENERATOR 	RTE_LOGTYPE_USER1
 
+extern rte_atomic64_t *nr_tx;
 extern uint64_t TICKS_PER_US;
 extern struct rte_ring	*rx_ring;
 extern struct rte_mempool *pktmbuf_pool;
 extern tcp_control_block_t *tcp_control_blocks;
-
-extern rte_atomic16_t *run;
-extern rte_atomic64_t *nr_tx;
 
 void clean_hugepages();
 void print_DPDK_stats();

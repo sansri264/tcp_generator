@@ -3,18 +3,21 @@
 uint8_t output_mode = 0;
 char output_file[MAXSTRLEN];
 
+/* Sample the value using Exponential Distribution */
 double sample(double lambda) {
     double u = ((double) rte_rand()) / ((uint64_t) -1);
 
     return -log(1 - u) / lambda;
 }
 
+/* Convert string type into int type*/
 static uint32_t process_int_arg(const char *arg) {
 	char *end = NULL;
 
 	return strtoul(arg, &end, 10);
 }
 
+/* Allocate all nodes for incoming packets (+ 20%) */
 void allocate_incoming_nodes() {
 	uint64_t nr_elements = (rate * duration * nr_executions) * 1.2;
 
@@ -26,6 +29,7 @@ void allocate_incoming_nodes() {
 	incoming_idx = 0;
 } 
 
+/* Allocate and Create an array for all interarrival packets for rate specified using Exponential Distribution */
 void create_interarrival_array() {
     double lambda = 1.0/(1000000.0/rate);
 	uint64_t nr_elements = rate * duration * nr_executions;
@@ -40,6 +44,7 @@ void create_interarrival_array() {
     } 
 }
 
+/* Allocate and Create an array for all flow indentier to send to the server */
 void create_flow_indexes_array() {
 	uint64_t nr_elements = rate * duration * nr_executions;
 
@@ -53,12 +58,14 @@ void create_flow_indexes_array() {
 	}
 }
 
+/* Clean up all allocate structures */
 void clean_heap() {
 	free(incoming);
 	free(flow_indexes);
     free(interarrival_gap);
 }
 
+/* Usage message */
 static void usage(const char *prgname) {
 	printf("%s [EAL options] -- \n"
 		"  -r RATE: rate in pps\n"
@@ -72,7 +79,7 @@ static void usage(const char *prgname) {
 	);
 }
 
-/* parse the argument given in the command line of the application */
+/* Parse the argument given in the command line of the application */
 int app_parse_args(int argc, char **argv) {
 	int opt, ret;
 	char **argvopt;
@@ -131,8 +138,8 @@ int app_parse_args(int argc, char **argv) {
 	return ret;
 }
 
+/* Wait for the duration parameter */
 void wait_timeout() {
-	/* wait for duration parameter */
 	uint64_t t0 = rte_rdtsc();
 	while((rte_rdtsc() - t0) < (duration * nr_executions * 1000000 * TICKS_PER_US)) { }
 
@@ -140,11 +147,13 @@ void wait_timeout() {
 	t0 = rte_rdtsc_precise();
 	while((rte_rdtsc() - t0) < (5 * 1000000 * TICKS_PER_US)) { }
 
+	/* set quit flag for all internal cores */
 	quit_rx = 1;
 	quit_tx = 1;
 	quit_rx_ring = 1;
 }
 
+/* Compare two double values (for qsort function) */
 int cmp_func(const void * a, const void * b) {
 	double da = (*(double*)a);
 	double db = (*(double*)b);
@@ -152,45 +161,51 @@ int cmp_func(const void * a, const void * b) {
 	return (da - db) > ( (fabs(da) < fabs(db) ? fabs(db) : fabs(da)) * EPSILON);
 }
 
+/* Print stats into output file */
 void print_stats_output() {
+	/* open the file */
 	FILE *fp = fopen(output_file, "w");
 	if(fp == NULL) {
 		rte_exit(EXIT_FAILURE, "Cannot open the output file.\n");
 	}
 
-	/* drop the first 'rate * duration' packets for warming up */
-	uint64_t i = (rate * duration);
+	/* drop the first 50% packets for warming up */
+	uint64_t i = 0.5 * incoming_idx;
 
 	/* print if there was the never_sent packets */
 	node_t *prev = &incoming[i-1];
 	fprintf(fp, "%lu\n", incoming[incoming_idx-1].nr_never_sent - prev->nr_never_sent);
 
+	/* print using the following structure (one line per packet):
+	 *	flow_id		RTT_latency (ns)	thread_id
+	 *	flow_id		RTT_latency (ns)	thread_id
+	 */
+	/* the thread_id indicates which thread in the server processed the packet */
 	node_t *cur;
 	for(; i < incoming_idx; i++) {
 		cur = &incoming[i];
 
-		fprintf(fp, "%lu\n",
-			((uint64_t)((cur->timestamp_rx - cur->timestamp_tx)/((double)TICKS_PER_US/1000)))
+		fprintf(fp, "%lu\t%lu\t%lu\n",
+			cur->flow_id,
+			((uint64_t)((cur->timestamp_rx - cur->timestamp_tx)/((double)TICKS_PER_US/1000))),
+			cur->thread_id
 		);
 	}
 
+	/* close the file */
 	fclose(fp);
 }
 
+/* Print the stats into stdout */
 void print_stats_percentile() {
+	/* No packets were received */
 	if(incoming_idx == 0) {
 		return;
 	}
 
+	/* If output mode is set, return it */
 	if(output_mode) {
 		print_stats_output();
-		return;
-	}
-
-	/* the maximum number of elements in a bucket */
-	uint32_t nr_elements = (rate * duration * nr_executions) * 1.2;
-	double *buckets = malloc(nr_elements * sizeof(double));
-	if(buckets == NULL) {
 		return;
 	}
 
@@ -204,9 +219,16 @@ void print_stats_percentile() {
 		"p50", "p75", "p90", "p99", "p99.9", "p99.99"
 	);
 
-	/* drop the first 'rate * duration' packets for warming up */
-	uint64_t i = (rate * duration);
+	/* drop the first 50\% packets for warming up */
+	uint64_t i = 0.5 * incoming_idx;
 	node_t *prev = &incoming[i-1];
+
+	/* allocate array for all incoming packets (after warming up) */
+	uint32_t nr_elements = incoming_idx - i + 1;
+	double *buckets = malloc(nr_elements * sizeof(double));
+	if(buckets == NULL) {
+		return;
+	}
 
 	uint64_t n = 0;
 	node_t *cur = &incoming[i];
@@ -216,6 +238,7 @@ void print_stats_percentile() {
 		buckets[n++] = ((double)(cur->timestamp_rx - cur->timestamp_tx))/TICKS_PER_US;
 	}
 
+	/* obtain percentiles */
 	uint32_t p50 = n * (50/100.0);
 	uint32_t p75 = n * (75/100.0);
 	uint32_t p90 = n * (90/100.0);
@@ -241,6 +264,7 @@ void print_stats_percentile() {
 		q50, q75, q90, q99, q999, q9999
 	);
 
+	/* clean up */
 	free(buckets);
 }
 
@@ -283,6 +307,15 @@ void process_config_file(char *cfg_file) {
 		dst_tcp_port = rte_cpu_to_be_16(port);
 	}
 
+	/* local server info */
+	entry = (char*) rte_cfgfile_get_entry(file, "server", "nr_apps");
+	if(entry) {
+		uint16_t n;
+		sscanf(entry, "%hu", &n);
+		nr_apps = n;
+	}
+
+	/* close the file */
 	rte_cfgfile_close(file);
 }
 
