@@ -319,17 +319,17 @@ int main(int argc, char **argv) {
 	uint16_t nr_queues = 1;
 	init_DPDK(portid, nr_queues);
 
-	/* initialize TCP control blocks */
-	init_tcp_blocks();
-
 	/* allocate nodes for incoming packets */
 	allocate_incoming_nodes();
 
-	/* create interarrival array */
-	create_interarrival_array();
-
 	/* create flow indexes array */
 	create_flow_indexes_array();
+
+	/* create interarrival array */
+	create_interarrival_array();
+	
+	/* initialize TCP control blocks */
+	init_tcp_blocks();
 
 	/* start client (3-way handshake for each flow) */
 	start_client(portid);
