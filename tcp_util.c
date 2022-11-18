@@ -256,7 +256,18 @@ void fill_tcp_packet(uint16_t i, struct rte_mbuf *pkt) {
 	sent_seq = rte_cpu_to_be_32(rte_be_to_cpu_32(sent_seq) + tcp_payload_size);
 	block->tcb_next_seq = sent_seq;
 
+	/* fill the payload of the packet */
+	uint8_t *payload = ((uint8_t*)tcp_hdr) + sizeof(struct rte_tcp_hdr);
+	fill_tcp_payload(payload, tcp_payload_size);
+
 	/* fill the packet size */
 	pkt->data_len = frame_size;
 	pkt->pkt_len = pkt->data_len;
+}
+
+/* Fill the payload of the TCP packet */
+void fill_tcp_payload(uint8_t *payload, uint32_t length) {
+	for(uint32_t i = 0; i < length; i++) {
+		payload[i] = 'A';
+	}
 }
