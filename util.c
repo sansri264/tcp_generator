@@ -1,6 +1,5 @@
 #include "util.h"
 
-uint8_t output_mode = 0;
 char output_file[MAXSTRLEN];
 
 /* Sample the value using Exponential Distribution */
@@ -119,7 +118,6 @@ int app_parse_args(int argc, char **argv) {
 		
 		/* output mode */
 		case 'o':
-			output_mode = 1;
 			strcpy(output_file, optarg);
 			break;
 
@@ -176,96 +174,18 @@ void print_stats_output() {
 	node_t *prev = &incoming[i-1];
 	fprintf(fp, "%lu\n", incoming[incoming_idx-1].nr_never_sent - prev->nr_never_sent);
 
-	/* print using the following structure (one line per packet):
-	 *	flow_id		RTT_latency (ns)	thread_id
-	 *	flow_id		RTT_latency (ns)	thread_id
-	 */
-	/* the thread_id indicates which thread in the server processed the packet */
+	/* print the RTT latency in (ns) */
 	node_t *cur;
 	for(; i < incoming_idx; i++) {
 		cur = &incoming[i];
 
-		fprintf(fp, "%lu\t%lu\t%lu\n",
-			cur->flow_id,
-			((uint64_t)((cur->timestamp_rx - cur->timestamp_tx)/((double)TICKS_PER_US/1000))),
-			cur->thread_id
+		fprintf(fp, "%lu\n",
+			((uint64_t)((cur->timestamp_rx - cur->timestamp_tx)/((double)TICKS_PER_US/1000)))
 		);
 	}
 
 	/* close the file */
 	fclose(fp);
-}
-
-/* Print the stats into stdout */
-void print_stats_percentile() {
-	/* No packets were received */
-	if(incoming_idx == 0) {
-		return;
-	}
-
-	/* If output mode is set, return it */
-	if(output_mode) {
-		print_stats_output();
-		return;
-	}
-
-	printf("\n%8s, %8s, %8s, %8s, %8s, %8s, %8s, %8s, %8s, %8s, %8s, %8s\n",
-		"target",
-		"actual",
-		"received",
-		"nvr_sent",
-		"ACK_dups",
-		"ACKempty",
-		"p50", "p75", "p90", "p99", "p99.9", "p99.99"
-	);
-
-	/* drop the first 50\% packets for warming up */
-	uint64_t i = 0.5 * incoming_idx;
-	node_t *prev = &incoming[i-1];
-
-	/* allocate array for all incoming packets (after warming up) */
-	uint32_t nr_elements = incoming_idx - i + 1;
-	double *buckets = malloc(nr_elements * sizeof(double));
-	if(buckets == NULL) {
-		return;
-	}
-
-	uint64_t n = 0;
-	node_t *cur = &incoming[i];
-	for(; i < incoming_idx; i++) {
-		cur = &incoming[i];
-
-		buckets[n++] = ((double)(cur->timestamp_rx - cur->timestamp_tx))/TICKS_PER_US;
-	}
-
-	/* obtain percentiles */
-	uint32_t p50 = n * (50/100.0);
-	uint32_t p75 = n * (75/100.0);
-	uint32_t p90 = n * (90/100.0);
-	uint32_t p99 = n * (99/100.0);
-	uint32_t p999 = n * (99.9/100.0);
-	uint32_t p9999 = n * (99.99/100.0);
-	qsort(buckets, n, sizeof(double), cmp_func);
-	double q50 = buckets[p50];
-	double q75 = buckets[p75];
-	double q90 = buckets[p90];
-	double q99 = buckets[p99];
-	double q999 = buckets[p999];
-	double q9999 = buckets[p9999];
-
-	/* print the stats */
-	printf("%8lu, %8lu, %8lu, %8lu, %8lu, %8lu, %8.2f, %8.2f, %8.2f, %8.2f, %8.2f, %8.2f\n", 
-		(rate * duration) - prev->nr_never_sent,
-		cur->nr_tx_pkts - (rate * duration),
-		n,
-		cur->nr_never_sent - prev->nr_never_sent,
-		cur->ack_dup - prev->ack_dup,
-		cur->ack_empty - prev->ack_empty,
-		q50, q75, q90, q99, q999, q9999
-	);
-
-	/* clean up */
-	free(buckets);
 }
 
 void process_config_file(char *cfg_file) {

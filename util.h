@@ -24,7 +24,6 @@
 /* Constants */
 #define EPSILON						0.00001
 #define MAXSTRLEN					128
-#define STATS_PERIOD_IN_US			1000000
 #define IPV4_ADDR(a, b, c, d)		(((d & 0xff) << 24) | ((c & 0xff) << 16) | ((b & 0xff) << 8) | (a & 0xff))
 
 typedef struct lcore_parameters {
@@ -72,9 +71,9 @@ extern uint64_t incoming_idx;
 void clean_heap();
 void wait_timeout();
 void print_dpdk_stats();
+void print_stats_output();
 void process_config_file();
 double sample(double lambda);
-void print_stats_percentile();
 void allocate_incoming_nodes();
 void create_interarrival_array();
 void create_flow_indexes_array();

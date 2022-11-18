@@ -91,7 +91,12 @@ int process_rx_pkt(struct rte_mbuf *pkt) {
 	}
 
 	/* update ACK number in the TCP control block from the packet */
-	rte_atomic32_set(&block->tcb_next_ack, tcp_hdr->sent_seq + rte_cpu_to_be_32(packet_data_size));
+	//rte_atomic32_set(&block->tcb_next_ack, tcp_hdr->sent_seq + rte_cpu_to_be_32(packet_data_size));
+	uint32_t ack_cur = rte_be_to_cpu_32(rte_atomic32_read(&block->tcb_next_ack));
+	uint32_t ack_hdr = rte_be_to_cpu_32(tcp_hdr->sent_seq) + (packet_data_size);
+	if(SEQ_LEQ(ack_cur, ack_hdr)) {
+		rte_atomic32_set(&block->tcb_next_ack, tcp_hdr->sent_seq + rte_cpu_to_be_32(packet_data_size));
+	}
 
 	/* obtain both timestamp from the packet */
 	uint8_t *payload = ((uint8_t*) tcp_hdr) + ((tcp_hdr->data_off >> 4)*4);
@@ -363,7 +368,7 @@ int main(int argc, char **argv) {
 	}
 
 	/* print stats */
-	print_stats_percentile();
+	print_stats_output();
 
 	/* print DPDK stats */
 	print_dpdk_stats(portid);
