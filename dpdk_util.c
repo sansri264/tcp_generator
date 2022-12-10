@@ -1,4 +1,7 @@
 #include "dpdk_util.h"
+#include <string.h>
+
+extern char output_file[MAXSTRLEN];
 
 /* Initialize DPDK configuration */
 void init_DPDK(uint16_t portid, uint64_t nr_queues) {
@@ -60,7 +63,7 @@ int init_DPDK_port(uint16_t portid, uint16_t nb_rx_queue, uint16_t nb_tx_queue, 
 	struct rte_eth_conf port_conf = {
         .rxmode = {
             .mq_mode = nb_rx_queue > 1 ? ETH_MQ_RX_RSS : ETH_MQ_RX_NONE,
-            .max_rx_pkt_len = RTE_ETHER_MAX_LEN,
+            .max_lro_pkt_size = RTE_ETHER_MAX_LEN,
             .split_hdr_size = 0,
             .offloads = DEV_RX_OFFLOAD_CHECKSUM,
         },
@@ -137,6 +140,28 @@ void print_dpdk_stats(uint32_t portid) {
 	printf("opackets: %lu\n", eth_stats.opackets);
 	printf("obytes: %lu\n", eth_stats.obytes);
 	printf("oerror: %lu\n", eth_stats.oerrors);
+
+	// Write json to a file too
+	FILE *fp = fopen(strcat(output_file,".summary"), "w");
+        if(fp == NULL) {
+                rte_exit(EXIT_FAILURE, "Cannot open the output file.\n");
+        }
+
+	fprintf(fp, "{\n"),
+	fprintf(fp, "\"frame_size\": %u,\n", frame_size);
+	fprintf(fp, "\"duration\": %lu,\n", duration);
+	fprintf(fp, "\"ipackets\": %lu,\n", eth_stats.ipackets);
+	fprintf(fp, "\"ibytes\": %lu,\n", eth_stats.ibytes);
+	fprintf(fp, "\"ierror\": %lu,\n", eth_stats.ierrors);
+	fprintf(fp, "\"imissed\": %lu,\n", eth_stats.imissed);
+	fprintf(fp, "\"rxnombuf\": %lu,\n", eth_stats.rx_nombuf);
+	fprintf(fp, "\"opackets\": %lu,\n", eth_stats.opackets);
+	fprintf(fp, "\"obytes\": %lu,\n", eth_stats.obytes);
+	fprintf(fp, "\"oerror\": %lu,\n", eth_stats.oerrors);
+	fprintf(fp, "}\n");
+
+        /* close the file */
+        fclose(fp);	
 
 	struct rte_eth_xstat *xstats;
     struct rte_eth_xstat_name *xstats_names;

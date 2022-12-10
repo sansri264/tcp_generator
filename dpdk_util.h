@@ -29,12 +29,15 @@
 #define MAX_RTE_FLOW_ACTIONS 		4
 #define PKTMBUF_POOL_ELEMENTS		512*1024 - 1
 #define RTE_LOGTYPE_TCP_GENERATOR 	RTE_LOGTYPE_USER1
+#define MAXSTRLEN                                        128
 
 extern rte_atomic64_t *nr_tx;
 extern uint64_t TICKS_PER_US;
 extern struct rte_ring	*rx_ring;
 extern struct rte_mempool *pktmbuf_pool;
 extern tcp_control_block_t *tcp_control_blocks;
+extern uint32_t frame_size;
+extern uint64_t duration;
 
 void clean_hugepages();
 void print_DPDK_stats();

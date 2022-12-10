@@ -1,6 +1,7 @@
 #include "util.h"
 
 char output_file[MAXSTRLEN];
+extern uint64_t is_single_buf;
 
 /* Sample the value using Exponential Distribution */
 double sample(double lambda) {
@@ -87,11 +88,16 @@ int app_parse_args(int argc, char **argv) {
 	nr_executions = 2;
 
 	argvopt = argv;
-	while ((opt = getopt(argc, argvopt, "r:f:s:p:t:c:o:")) != EOF) {
+	while ((opt = getopt(argc, argvopt, "r:f:s:p:t:c:o:m:")) != EOF) {
 		switch (opt) {
 		/* rate (pps) */
 		case 'r':
 			rate = process_int_arg(optarg);
+			break;
+
+		/* mode (0-single/1-list) */
+		case 'm':
+			is_single_buf = process_int_arg(optarg);
 			break;
 
 		/* flows (un.) */
