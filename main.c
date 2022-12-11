@@ -50,8 +50,11 @@ uint32_t dst_ipv4_addr;
 uint32_t src_ipv4_addr;
 uint16_t dst_tcp_port;
 
-uint64_t is_single_buf;
-
+/*#define MAXSTRLEN                                       128
+char message_type[MAXSTRLEN];
+uint64_t base_payload_len;
+char serialization_format[MAXSTRLEN];
+*/
 /* Process the incoming TCP packet */
 int process_rx_pkt(struct rte_mbuf *pkt) {
 	/* process only TCP packets*/

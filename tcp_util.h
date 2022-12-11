@@ -79,6 +79,12 @@ extern uint32_t tcp_payload_size;
 extern struct rte_mempool *pktmbuf_pool;
 extern tcp_control_block_t *tcp_control_blocks;
 
+#define MAXSTRLEN                                        128
+extern char message_type[MAXSTRLEN];
+extern uint64_t base_payload_len;
+extern char serialization_format[MAXSTRLEN];
+
+
 void init_tcp_blocks();
 struct rte_mbuf* create_syn_packet(uint16_t i);
 struct rte_mbuf *create_ack_packet(uint16_t i);

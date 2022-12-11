@@ -1,7 +1,13 @@
 #include "util.h"
+#include <string.h>
 
 char output_file[MAXSTRLEN];
-extern uint64_t is_single_buf;
+
+char message_type[MAXSTRLEN];
+uint64_t is_list_buf;
+uint64_t base_payload_len;
+char serialization_format[MAXSTRLEN];
+
 
 /* Sample the value using Exponential Distribution */
 double sample(double lambda) {
@@ -88,18 +94,12 @@ int app_parse_args(int argc, char **argv) {
 	nr_executions = 2;
 
 	argvopt = argv;
-	while ((opt = getopt(argc, argvopt, "r:f:s:p:t:c:o:m:")) != EOF) {
+	while ((opt = getopt(argc, argvopt, "r:f:s:p:t:c:o:m:z:l:")) != EOF) {
 		switch (opt) {
 		/* rate (pps) */
 		case 'r':
 			rate = process_int_arg(optarg);
 			break;
-
-		/* mode (0-single/1-list) */
-		case 'm':
-			is_single_buf = process_int_arg(optarg);
-			break;
-
 		/* flows (un.) */
 		case 'f':
 			nr_flows = process_int_arg(optarg);
@@ -125,6 +125,21 @@ int app_parse_args(int argc, char **argv) {
 		/* output mode */
 		case 'o':
 			strcpy(output_file, optarg);
+			break;
+
+		/* message type (0-"single"/1-"list") */
+		case 'm': 
+			strcpy(message_type, optarg);
+			break;
+
+		/* serialization format ("cf"/"fb") */
+		case 'z':
+			strcpy(serialization_format, optarg);
+			break;
+
+		/* base payload size (without any headers) (1024/4096) */
+		case 'l':
+			base_payload_len = process_int_arg(optarg);
 			break;
 
 		default:
