@@ -62,20 +62,20 @@ int init_DPDK_port(uint16_t portid, uint16_t nb_rx_queue, uint16_t nb_tx_queue, 
 	/* get port_conf default */
 	struct rte_eth_conf port_conf = {
         .rxmode = {
-            .mq_mode = nb_rx_queue > 1 ? ETH_MQ_RX_RSS : ETH_MQ_RX_NONE,
+            .mq_mode = nb_rx_queue > 1 ? RTE_ETH_MQ_RX_RSS : RTE_ETH_MQ_RX_NONE,
             .max_lro_pkt_size = RTE_ETHER_MAX_LEN,
             .split_hdr_size = 0,
-            .offloads = DEV_RX_OFFLOAD_CHECKSUM,
+            .offloads = RTE_ETH_RX_OFFLOAD_CHECKSUM,
         },
         .rx_adv_conf = {
             .rss_conf = {
                 .rss_key = NULL,
-                .rss_hf = ETH_RSS_TCP,
+                .rss_hf = RTE_ETH_RSS_TCP,
             },
         },
         .txmode = {
-            .mq_mode = ETH_MQ_TX_NONE,
-            .offloads = DEV_TX_OFFLOAD_TCP_CKSUM|DEV_TX_OFFLOAD_IPV4_CKSUM|DEV_TX_OFFLOAD_MBUF_FAST_FREE,
+            .mq_mode = RTE_ETH_MQ_TX_NONE,
+            .offloads = RTE_ETH_TX_OFFLOAD_TCP_CKSUM|RTE_ETH_TX_OFFLOAD_IPV4_CKSUM|RTE_ETH_TX_OFFLOAD_MBUF_FAST_FREE,
         },
     };
 

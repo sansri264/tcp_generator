@@ -104,13 +104,6 @@ int app_parse_args(int argc, char **argv) {
 		case 'f':
 			nr_flows = process_int_arg(optarg);
 			break;
-
-		/* frame size (bytes) */
-		case 's':
-			frame_size = process_int_arg(optarg);
-			tcp_payload_size = (frame_size - sizeof(struct rte_ether_hdr) - sizeof(struct rte_ipv4_hdr) - sizeof(struct rte_tcp_hdr));
-			break;
-
 		/* duration (s) */
 		case 't':
 			duration = process_int_arg(optarg);
@@ -154,6 +147,45 @@ int app_parse_args(int argc, char **argv) {
 	ret = optind-1;
 	optind = 1;
 
+    if (!strcmp(serialization_format, "none")) {
+        tcp_payload_size = base_payload_len + 32;
+    } else if (!strcmp(serialization_format, "cf") && 
+			base_payload_len==1024 && 
+			!strcmp(message_type, "single")) {
+        tcp_payload_size = 1044 + 32;
+	} else if (!strcmp(serialization_format, "cf") && 
+			base_payload_len==1024 &&
+			!strcmp(message_type, "list")) {
+		tcp_payload_size = 1060 + 32;
+	} else if (!strcmp(serialization_format, "fb") && 
+			base_payload_len==1024 &&
+		    !strcmp(message_type, "single")) {
+        tcp_payload_size = 1052 + 32;
+	} else if (!strcmp(serialization_format, "fb") && 
+			base_payload_len==1024 &&
+		!strcmp(message_type, "list")) {
+        tcp_payload_size = 1084 + 32;
+	} else if (!strcmp(serialization_format, "cf") && 
+			base_payload_len==4096 &&
+		!strcmp(message_type, "single")) {
+		tcp_payload_size = 4116 + 32;
+	} else if (!strcmp(serialization_format, "cf") && 
+			base_payload_len==4096 &&
+			!strcmp(message_type, "list")) {
+		tcp_payload_size = 4132 + 32;
+	} else if (!strcmp(serialization_format, "fb") && 
+			base_payload_len==4096 &&
+			!strcmp(message_type, "single")) {
+		tcp_payload_size = 4124 + 32;
+	} else if (!strcmp(serialization_format, "fb") && 
+			base_payload_len==4096 &&
+			!strcmp(message_type, "list")) {
+		tcp_payload_size = 4156 + 32;
+	}
+    printf("Setting tcp_payload_size to %u\n", tcp_payload_size);
+    frame_size = tcp_payload_size + sizeof(struct rte_ether_hdr) + sizeof(struct rte_ipv4_hdr) + sizeof(struct rte_tcp_hdr);
+    
+
 	return ret;
 }
 
@@ -188,6 +220,7 @@ void print_stats_output() {
 		rte_exit(EXIT_FAILURE, "Cannot open the output file.\n");
 	}
 
+    printf("Incoming idx: %lu\n", incoming_idx);
 	/* drop the first 50% packets for warming up */
 	uint64_t i = 0.5 * incoming_idx;
 

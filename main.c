@@ -78,6 +78,7 @@ int process_rx_pkt(struct rte_mbuf *pkt) {
 	}
 
 	/* update receive window from the packet */
+    //printf("Receive window: %d\n", tcp_hdr->rx_win);
 	rte_atomic16_set(&block->tcb_rwin, tcp_hdr->rx_win);
 
 	/* update DUP ACKs counter */
@@ -104,6 +105,7 @@ int process_rx_pkt(struct rte_mbuf *pkt) {
 	}
 
 	/* obtain both timestamp from the packet */
+    //uint8_t *payload = rte_pktmbuf_mtod_offset(pkt, uint8_t *, sizeof(struct rte_ether_hdr) + sizeof(struct rte_ipv4_hdr) + sizeof(struct rte_tcp_hdr));
 	uint8_t *payload = ((uint8_t*) tcp_hdr) + ((tcp_hdr->data_off >> 4)*4);
 	uint64_t t0 = ((uint64_t*)payload)[0];
 	uint64_t t = ((uint64_t*)payload)[1];
@@ -117,6 +119,7 @@ int process_rx_pkt(struct rte_mbuf *pkt) {
 	node->ack_dup = ack_dup;
 	node->ack_empty = ack_empty;
 	node->nr_tx_pkts = rte_atomic64_read(nr_tx);
+    //printf("[Receive] For node %lu, timestamp rx: %lu, timestamp tx: %lu\n", incoming_idx - 1, t - t0, t0);
 	node->timestamp_rx = t;
 	node->timestamp_tx = t0;
 	node->nr_never_sent = nr_never_sent;
@@ -145,6 +148,7 @@ void start_client(uint16_t portid) {
 		if(nb_tx != 1) {
 			rte_exit(EXIT_FAILURE, "Error to send the TCP SYN packet.\n");
 		}
+        //printf("Sent syn packet\n");
 		/* change the TCP state to SYN_SENT */
 		rte_atomic16_set(&block->tcb_state, TCP_SYN_SENT);
 
@@ -155,11 +159,13 @@ void start_client(uint16_t portid) {
 
 			for(int j = 0; j < nb_rx; j++) {
 				/* process the SYN+ACK packet, returning the ACK packet to send*/
+                //printf("Received some packets back\n");
 				pkt = process_syn_ack_packet(pkts[j]);
 				
 				if(pkt) {
 					/* send the TCP ACK packet to the server */
 					nb_tx = rte_eth_tx_burst(portid, 0, &pkt, 1);
+                    //printf("Just bursted again\n");
 					if(nb_tx != 1) {
 						rte_exit(EXIT_FAILURE, "Error to send the TCP ACK packet.\n");
 					}
@@ -173,12 +179,12 @@ void start_client(uint16_t portid) {
 	/* Discard 3-way handshake packets in the DPDK metrics */
 	rte_eth_stats_reset(portid);
 	rte_eth_xstats_reset(portid);
-	
 	rte_compiler_barrier();
 }
 
 /* RX processing */
 static int lcore_rx_ring(void *arg) {
+    //printf("Starting lcore rx loop\n");
 	uint16_t nb_rx;
 	struct rte_mbuf *pkts[BURST_SIZE];
 
@@ -225,7 +231,7 @@ static int lcore_rx(void *arg) {
 		now = rte_rdtsc();
 		for(int i = 0; i < nb_rx; i++) {
 			/* fill the timestamp into packet payload */
-			fill_payload_pkt(pkts[i], 1, now);
+			fill_payload_pkt(pkts[i], 2, now);
 			/* enqueue the packet to the other core to process it */
 			if(rte_ring_mp_enqueue(rx_ring, pkts[i]) != 0) {
 				rte_exit(EXIT_FAILURE, "Cannot enqueue the packet to the RX thread: %s.\n", rte_strerror(errno));
@@ -238,6 +244,7 @@ static int lcore_rx(void *arg) {
 
 /* Main TX processing */
 static int lcore_tx(void *arg) {
+    printf("In lcore_tx function\n");
 	lcore_param *tx_conf = (lcore_param *) arg;
 	uint16_t portid = tx_conf->portid;
 	uint8_t qid = tx_conf->qid;
@@ -267,7 +274,7 @@ static int lcore_tx(void *arg) {
 			/* fill the packet with the flow information */
 			fill_tcp_packet(flow_id, pkts[nb_pkts]);
 			/* fill the payload to gather server information */
-			fill_payload_pkt(pkts[nb_pkts], 2, flow_id);
+			fill_payload_pkt(pkts[nb_pkts], 1, flow_id);
 		}
 
 		/* check receive window for that flow */
@@ -342,13 +349,16 @@ int main(int argc, char **argv) {
 	init_tcp_blocks();
 
 	/* start client (3-way handshake for each flow) */
+    printf("Starting client\n");
 	start_client(portid);
+    printf("Done with start client\n");
 
 	/* start the RX_ring thread for packet processing */
 	uint32_t id_lcore = rte_lcore_id();	
 	id_lcore = rte_get_next_lcore(id_lcore, 1, 1);
 	rte_eal_remote_launch(lcore_rx_ring, NULL, id_lcore);
 
+    printf("About to start rx and tx threadsi\n");
 	/* start RX and TX threads */
 	for(int i = 0; i < nr_queues; i++) {
 		lcore_params[i].portid = portid;
