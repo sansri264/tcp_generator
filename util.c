@@ -234,9 +234,12 @@ void print_stats_output() {
 	for(; i < incoming_idx; i++) {
 		cur = &incoming[i];
 
+        //fprintf(fp, "%lu,%lu\n",
+          //      (uint64_t)((cur->timestamp_rx)/((double)TICKS_PER_US/1000)),
+          //      (uint64_t)((cur->timestamp_tx)/((double)TICKS_PER_US/1000)));
 		fprintf(fp, "%lu\n",
 			((uint64_t)((cur->timestamp_rx - cur->timestamp_tx)/((double)TICKS_PER_US/1000)))
-		);
+        );
 	}
 
 	/* close the file */
@@ -294,6 +297,12 @@ void process_config_file(char *cfg_file) {
 	rte_cfgfile_close(file);
 }
 
+/* Fill the data into packet payload properly */
+inline uint64_t read_payload_pkt(struct rte_mbuf *pkt, uint32_t idx) {
+	uint8_t *payload = (uint8_t*) rte_pktmbuf_mtod_offset(pkt, uint8_t*, sizeof(struct rte_ether_hdr) + sizeof(struct rte_ipv4_hdr) + sizeof(struct rte_tcp_hdr));
+
+	return ((uint64_t*)payload)[idx];
+}
 /* Fill the data into packet payload properly */
 inline void fill_payload_pkt(struct rte_mbuf *pkt, uint32_t idx, uint64_t value) {
 	uint8_t *payload = (uint8_t*) rte_pktmbuf_mtod_offset(pkt, uint8_t*, sizeof(struct rte_ether_hdr) + sizeof(struct rte_ipv4_hdr) + sizeof(struct rte_tcp_hdr));

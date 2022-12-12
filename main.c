@@ -111,8 +111,8 @@ int process_rx_pkt(struct rte_mbuf *pkt) {
     //uint8_t *payload = rte_pktmbuf_mtod_offset(pkt, uint8_t *, sizeof(struct rte_ether_hdr) + sizeof(struct rte_ipv4_hdr) + sizeof(struct rte_tcp_hdr));
 	uint8_t *payload = ((uint8_t*) tcp_hdr) + ((tcp_hdr->data_off >> 4)*4);
 	uint64_t t0 = ((uint64_t*)payload)[0];
-	uint64_t t = ((uint64_t*)payload)[1];
-	uint64_t f_id = ((uint64_t*)payload)[2];
+	uint64_t t = ((uint64_t*)payload)[2];
+	uint64_t f_id = ((uint64_t*)payload)[1];
 	uint64_t thread_id = ((uint64_t*)payload)[3];
 
 	/* fill the node previously allocated */
@@ -122,7 +122,6 @@ int process_rx_pkt(struct rte_mbuf *pkt) {
 	node->ack_dup = ack_dup;
 	node->ack_empty = ack_empty;
 	node->nr_tx_pkts = rte_atomic64_read(nr_tx);
-    //printf("[Receive] For node %lu, timestamp rx: %lu, timestamp tx: %lu\n", incoming_idx - 1, t - t0, t0);
 	node->timestamp_rx = t;
 	node->timestamp_tx = t0;
 	node->nr_never_sent = nr_never_sent;
@@ -234,6 +233,7 @@ static int lcore_rx(void *arg) {
 		now = rte_rdtsc();
 		for(int i = 0; i < nb_rx; i++) {
 			/* fill the timestamp into packet payload */
+            //printf("[lcore rx], recv stuff at: %lu; this pkt got stuff at %lu\n", now, read_payload_pkt(pkts[0], 0));
 			fill_payload_pkt(pkts[i], 2, now);
 			/* enqueue the packet to the other core to process it */
 			if(rte_ring_mp_enqueue(rx_ring, pkts[i]) != 0) {

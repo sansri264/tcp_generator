@@ -79,5 +79,6 @@ void create_interarrival_array();
 void create_flow_indexes_array();
 int app_parse_args(int argc, char **argv);
 void fill_payload_pkt(struct rte_mbuf *pkt, uint32_t idx, uint64_t value);
+uint64_t read_payload_pkt(struct rte_mbuf *pkt, uint32_t idx);
 
 #endif // __UTIL_H__
