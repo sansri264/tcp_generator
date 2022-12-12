@@ -149,6 +149,7 @@ int app_parse_args(int argc, char **argv) {
 
     if (!strcmp(serialization_format, "none")) {
         tcp_payload_size = base_payload_len + 32;
+        printf("Payload size: %u\n", tcp_payload_size);
     } else if (!strcmp(serialization_format, "cf") && 
 			base_payload_len==1024 && 
 			!strcmp(message_type, "single")) {

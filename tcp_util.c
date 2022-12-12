@@ -202,6 +202,7 @@ struct rte_mbuf* process_syn_ack_packet(struct rte_mbuf* pkt) {
 
 	/* retrieve the index of the flow from the NIC (NIC tags the packet according the 5-tuple using DPDK rte_flow) */
 	uint32_t idx = pkt->hash.fdir.hi;
+    printf("[process synack] length = %u, IP dst = %08x, IP src = %08x, port dst = %d, port src = %d FLOW ID = %u\n",  pkt->pkt_len, ipv4_hdr->src_addr, ipv4_hdr->dst_addr, tcp_hdr->src_port, tcp_hdr->dst_port, idx);
 
 	/* get control block for the flow */
 	tcp_control_block_t *block = &tcp_control_blocks[idx];
